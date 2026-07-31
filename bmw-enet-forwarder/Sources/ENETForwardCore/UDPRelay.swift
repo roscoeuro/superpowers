@@ -23,6 +23,11 @@ final class UDPRelay {
         self.queue = DispatchQueue(label: "udp.\(listenPort)")
     }
 
+    func stop() {
+        listener?.cancel()
+        listener = nil
+    }
+
     func start() throws {
         let params = NWParameters.udp
         params.allowLocalEndpointReuse = true

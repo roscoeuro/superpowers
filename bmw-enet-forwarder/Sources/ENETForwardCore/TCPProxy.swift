@@ -11,15 +11,22 @@ final class TCPProxy {
     private let carPort: NWEndpoint.Port
     private let label: String
     private let queue: DispatchQueue
+    private let stats: Stats?
     private var listener: NWListener?
 
-    init(bind: String, listenPort: UInt16, carHost: String, carPort: UInt16, label: String) {
+    init(bind: String, listenPort: UInt16, carHost: String, carPort: UInt16, label: String, stats: Stats? = nil) {
         self.bindHost = (bind == "0.0.0.0" || bind.isEmpty) ? nil : NWEndpoint.Host(bind)
         self.listenPort = NWEndpoint.Port(rawValue: listenPort)!
         self.carHost = NWEndpoint.Host(carHost)
         self.carPort = NWEndpoint.Port(rawValue: carPort)!
         self.label = label
+        self.stats = stats
         self.queue = DispatchQueue(label: "tcp.\(listenPort)")
+    }
+
+    func stop() {
+        listener?.cancel()
+        listener = nil
     }
 
     func start() throws {
@@ -53,7 +60,7 @@ final class TCPProxy {
     private func accept(_ client: NWConnection) {
         Log.info("[\(label)] client \(client.endpoint) connected")
         let upstream = NWConnection(host: carHost, port: carPort, using: .tcp)
-        TCPSession(client: client, upstream: upstream, label: label, queue: queue).start()
+        TCPSession(client: client, upstream: upstream, label: label, queue: queue, stats: stats).start()
     }
 }
 
@@ -64,16 +71,19 @@ private final class TCPSession {
     private let upstream: NWConnection
     private let label: String
     private let queue: DispatchQueue
+    private let stats: Stats?
     private var isClosed = false
 
-    init(client: NWConnection, upstream: NWConnection, label: String, queue: DispatchQueue) {
+    init(client: NWConnection, upstream: NWConnection, label: String, queue: DispatchQueue, stats: Stats?) {
         self.client = client
         self.upstream = upstream
         self.label = label
         self.queue = queue
+        self.stats = stats
     }
 
     func start() {
+        stats?.connectionOpened()
         upstream.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready:
@@ -133,6 +143,7 @@ private final class TCPSession {
             self.isClosed = true
             self.client.cancel()
             self.upstream.cancel()
+            self.stats?.connectionClosed()
             Log.info("[\(self.label)] session closed")
         }
     }

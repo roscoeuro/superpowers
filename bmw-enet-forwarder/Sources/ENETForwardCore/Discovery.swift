@@ -6,9 +6,9 @@ import Foundation
 /// neighbour table for that interface contains the car once any traffic has
 /// flowed. We list those neighbours and TCP-probe the ENET/DoIP diagnostic
 /// ports to confirm which one is the car.
-enum Discovery {
+public enum Discovery {
     /// TCP connect probe with a timeout, using non-blocking POSIX sockets.
-    static func tcpProbe(host: String, port: UInt16, timeoutSeconds: Int32 = 1) -> Bool {
+    public static func tcpProbe(host: String, port: UInt16, timeoutSeconds: Int32 = 1) -> Bool {
         var hints = addrinfo(
             ai_flags: 0,
             ai_family: AF_INET,
@@ -45,7 +45,7 @@ enum Discovery {
     }
 
     /// Reads the ARP neighbour table for an interface (`arp -an -i <iface>`).
-    static func neighbours(interface: String) -> [String] {
+    public static func neighbours(interface: String) -> [String] {
         let output = shell("/usr/sbin/arp", ["-an", "-i", interface])
         var ips: [String] = []
         for line in output.split(separator: "\n") {
@@ -63,7 +63,7 @@ enum Discovery {
 
     /// Scan an interface for a host answering on any of the given diagnostic
     /// TCP ports. Returns the first matching IP, if any.
-    static func findCar(interface: String, tcpPorts: [UInt16]) -> String? {
+    public static func findCar(interface: String, tcpPorts: [UInt16]) -> String? {
         let candidates = neighbours(interface: interface)
         if candidates.isEmpty {
             Log.warn("No ARP neighbours on \(interface) yet. Connect the ENET cable, turn the car's ignition on, then retry — or pass --car <ip>.")

@@ -1,12 +1,12 @@
 import Foundation
 
 /// A port that should be relayed to the car.
-struct RelayPort {
-    let port: UInt16
-    let proto: Proto
-    let label: String
+public struct RelayPort {
+    public let port: UInt16
+    public let proto: Proto
+    public let label: String
 
-    enum Proto: String {
+    public enum Proto: String {
         case tcp
         case udp
     }
@@ -14,7 +14,7 @@ struct RelayPort {
 
 /// Named BMW ENET port profiles. The forwarder is byte-transparent, so a
 /// "profile" is simply the set of ports it opens and relays to the car.
-enum Profile: String {
+public enum Profile: String, CaseIterable {
     /// Classic ENET, used by F-series (and most E/G with the DCAN/ENET era tools).
     /// Diagnostics on TCP 6801, control/announcement on UDP 6811.
     case f
@@ -26,7 +26,7 @@ enum Profile: String {
     /// Everything above at once — covers F, G and any ENET vehicle.
     case all
 
-    static func parse(_ raw: String) -> Profile? {
+    public static func parse(_ raw: String) -> Profile? {
         switch raw.lowercased() {
         case "f", "f-series", "enet", "classic": return .f
         case "g", "g-series", "doip", "new": return .g
@@ -35,7 +35,16 @@ enum Profile: String {
         }
     }
 
-    var ports: [RelayPort] {
+    /// Human label for pickers.
+    public var displayName: String {
+        switch self {
+        case .f: return "F-series (classic ENET)"
+        case .g: return "G-series+ (DoIP)"
+        case .all: return "All ENET (F + G)"
+        }
+    }
+
+    public var ports: [RelayPort] {
         switch self {
         case .f:
             return [

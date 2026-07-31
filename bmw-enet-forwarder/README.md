@@ -44,15 +44,44 @@ this tool relays that to the car. No fake announcements, no kernel extensions.
 
 ---
 
+## Two ways to run it
+
+| | Menu-bar app | Command line |
+|---|---|---|
+| Target | `enetforwardapp` | `enetforward` |
+| Best for | click-to-run, live status | scripting, headless/SSH |
+
+Both drive the exact same relay engine (`ENETForwardCore`).
+
 ## Build
 
 ```bash
 cd bmw-enet-forwarder
 swift build -c release
-# binary at: .build/release/enetforward
+# CLI binary:  .build/release/enetforward
+# App binary:  .build/release/enetforwardapp
 ```
 
-Optional — install to your PATH:
+### Menu-bar app (recommended)
+
+Wrap it into a proper `.app` (menu-bar agent, no Dock icon):
+
+```bash
+./scripts/make-app.sh
+open "build/BMW ENET Forwarder.app"
+```
+
+A car icon appears in the menu bar. Click it to:
+
+- pick the car profile (**F**, **G**, or **All**),
+- pick the ENET interface and **Scan** for the car (or type the IP),
+- press **Start** — the icon turns into a signal glyph while forwarding,
+- see live listeners, active sessions, and a one-click **copy** of this Mac's
+  Tailscale IP to paste into E-SYS as the RemoteHost.
+
+> Gatekeeper: the app is unsigned, so the first launch needs right-click → **Open**.
+
+Optional — install the CLI to your PATH:
 
 ```bash
 cp .build/release/enetforward /usr/local/bin/

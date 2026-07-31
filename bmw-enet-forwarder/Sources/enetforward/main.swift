@@ -1,4 +1,5 @@
 import Foundation
+import ENETForwardCore
 
 // MARK: - Small helpers
 
@@ -34,13 +35,7 @@ private func printUsage() {
       --list-interfaces     Print this Mac's IPv4 interfaces and exit
       -h, --help            Show this help
 
-    TYPICAL REMOTE SETUP (F + G):
-      1. Install Tailscale on this Mac and on the remote Windows machine
-         (same tailnet). Note this Mac's Tailscale IP (100.x.y.z).
-      2. Plug OBD->ENET->Ethernet into the car, ignition on.
-      3. Run:  enetforward --scan en7        (or --car 169.254.a.b)
-      4. On Windows, in E-SYS/EDIABAS ENET config set the RemoteHost to this
-         Mac's Tailscale IP. Connect and code as usual.
+    A menu-bar app (enetforwardapp) is also available for click-to-run use.
 
     Only use this on a vehicle you own or are authorised to service.
     """
@@ -97,11 +92,9 @@ while index < rawArgs.count {
 
 // MARK: - Resolve the car IP
 
-let tcpPortsForProfile = profile.ports.filter { $0.proto == .tcp }.map { $0.port }
-
 if carIP == nil, let iface = scanInterface {
     Log.info("Scanning \(iface) for the car...")
-    carIP = Discovery.findCar(interface: iface, tcpPorts: tcpPortsForProfile)
+    carIP = ForwarderEngine.discoverCar(interface: iface, profile: profile)
 }
 
 guard let resolvedCarIP = carIP else {
@@ -110,35 +103,39 @@ guard let resolvedCarIP = carIP else {
     exit(1)
 }
 
-// MARK: - Start relays
+// MARK: - Start
 
 Log.info("BMW ENET forwarder starting")
 Log.info("Profile: \(profile.rawValue)   Car: \(resolvedCarIP)   Bind: \(listenAddr)")
 
-var startedAny = false
-for relay in profile.ports {
-    if relay.proto == .udp && !enableUDP { continue }
-    do {
-        switch relay.proto {
-        case .tcp:
-            try TCPProxy(bind: listenAddr, listenPort: relay.port,
-                         carHost: resolvedCarIP, carPort: relay.port,
-                         label: relay.label).start()
-        case .udp:
-            try UDPRelay(bind: listenAddr, listenPort: relay.port,
-                         carHost: resolvedCarIP, carPort: relay.port,
-                         label: relay.label).start()
-        }
-        startedAny = true
-    } catch {
-        Log.error("Could not open \(relay.proto.rawValue) \(relay.port) (\(relay.label)): \(error)")
-    }
-}
-
-guard startedAny else {
-    Log.error("No relays could be started. Is another forwarder already running?")
+let engine = ForwarderEngine()
+do {
+    try engine.start(ForwarderConfig(profile: profile, carIP: resolvedCarIP,
+                                     listenAddr: listenAddr, enableUDP: enableUDP))
+} catch {
+    Log.error("\(error.localizedDescription)")
     exit(1)
 }
 
+for line in engine.snapshot().listeners {
+    Log.info("Listening: \(line)")
+}
 Log.info("Ready. Point the remote E-SYS RemoteHost at this Mac's VPN IP. Ctrl-C to stop.")
+
+// Stop cleanly on SIGINT/SIGTERM.
+let signalQueue = DispatchQueue(label: "signals")
+var signalSources: [DispatchSourceSignal] = []
+for sig in [SIGINT, SIGTERM] {
+    signal(sig, SIG_IGN)
+    let source = DispatchSource.makeSignalSource(signal: sig, queue: signalQueue)
+    source.setEventHandler {
+        Log.info("Shutting down...")
+        engine.stop()
+        exit(0)
+    }
+    source.resume()
+    // Keep the source alive for the process lifetime.
+    signalSources.append(source)
+}
+
 dispatchMain()
